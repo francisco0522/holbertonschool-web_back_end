@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Writing strings to Redis"""
+"""
+0x0B. Redis basic
+"""
 from functools import wraps
 from redis.client import Redis
 from typing import Union, Callable, Optional, Any
@@ -7,51 +9,51 @@ import uuid
 
 
 def count_calls(method: Callable) -> Callable:
-    """Incrementing values"""
-    data = method.__qualname__
+    """count calls"""
+    key = method.__qualname__
 
     @wraps(method)
     def wrapper(self, *args, **kwds):
         """wrapper func"""
-        self._redis.incr(data)
+        self._redis.incr(key)
         return method(self, *args, **kwds)
     return wrapper
 
 
 def call_history(method: Callable) -> Callable:
-    """Storing lists"""
-    data = method.__qualname__
-    inputs = data + ":inputs"
-    outputs = data + ":outputs"
+    """call  history"""
+    key = method.__qualname__
+    inputs = key + ":inputs"
+    outputs = key + ":outputs"
 
     @wraps(method)
     def wrapper(self, *args, **kwds):
         """wrapper func"""
         self._redis.rpush(inputs, str(args))
-        res = method(self, *args, **kwds)
-        self._redis.rpush(outputs, str(res))
-        return res
+        result = method(self, *args, **kwds)
+        self._redis.rpush(outputs, str(result))
+        return result
     return wrapper
 
 
 def replay(method: Callable):
-    """Retrieving lists"""
-    data = method.__qualname__
-    inputs = data + ":inputs"
-    outputs = data + ":outputs"
+    """replay function"""
+    key = method.__qualname__
+    inputs = key + ":inputs"
+    outputs = key + ":outputs"
     redis = method.__self__._redis
-    count = redis.get(data).decode("utf-8")
-    print(f"{data} was called {count} times:")
+    count = redis.get(key).decode("utf-8")
+    print(f"{key} was called {count} times:")
     in_list = redis.lrange(inputs, 0, -1)
     out_list = redis.lrange(outputs, 0, -1)
     redis_zipped = list(zip(in_list, out_list))
     for a, b in redis_zipped:
-        attr, res = a.decode("utf-8"), b.decode("utf-8")
-        print(f"{data}(*{attr}) -> {res}")
+        attr, result = a.decode("utf-8"), b.decode("utf-8")
+        print(f"{key}(*{attr}) -> {result}")
 
 
 class Cache:
-    """Redis Class"""
+    """Cache class"""
 
     def __init__(self):
         """constructor"""
@@ -61,14 +63,17 @@ class Cache:
     @call_history
     @count_calls
     def store(self, data: Union[str, bytes, int, float]) -> str:
-        """returns a string"""
-        data = str(uuid.uuid4())
-        self._redis.set(data, data)
-        return data
+        """Store data in cache"""
+        key = str(uuid.uuid4())
+        self._redis.set(key, data)
+        return key
 
-    def get(self, data: str, fn: Optional[Callable] = None) ->\
+    def get(self, key: str, fn: Optional[Callable] = None) ->\
             Union[str, bytes, int, float]:
-        """get method"""
-        if data:
-            res = self._redis.get(data)
-            return fn(res) if fn else res
+        """get data from fuction or cache"""
+        if key:
+            result = self._redis.get(key)
+            if fn:
+                return fn(result)
+            else:
+                return result
